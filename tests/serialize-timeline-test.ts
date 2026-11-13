@@ -87,6 +87,164 @@ async function main() {
 }
 
 {
+  // Default (packed) layout: clips back-to-back, no gaps, source offsets kept.
+  const timeline = buildNleTimeline({
+    keepRanges: keeps,
+    duration: 5,
+    mediaFileName: "interview.mp4",
+    frameRate: "30",
+    withVideo: true,
+    withAudio: true,
+  });
+  assert(
+    timeline.tracks[0].items.every((item) => item.kind === "clip"),
+    "packed timeline has no gaps"
+  );
+  const packedSecond = timeline.tracks[0].items[1];
+  if (packedSecond.kind !== "clip") throw new Error("packed second item is a clip");
+  const packedSourceIn =
+    packedSecond.sourceRange!.startTime.num / packedSecond.sourceRange!.startTime.den;
+  assert(packedSourceIn === 2, "packed second clip keeps its source in (2s)");
+  console.log("packed timeline unchanged: ok");
+}
+
+{
+  // preserveTimecodes: clips start at their own timecode, gaps in between.
+  // keeps = [{0,1},{2,3.5}] @ 30fps → clip(0–30f), gap(30f), clip(60–105f)
+  const timeline = buildNleTimeline({
+    keepRanges: keeps,
+    duration: 5,
+    mediaFileName: "interview.mp4",
+    frameRate: "30",
+    withVideo: true,
+    withAudio: true,
+    preserveTimecodes: true,
+  });
+  const items = timeline.tracks[0].items;
+  assert(items.length === 3, "gap between the two clips");
+  const [first, gap, second] = items;
+  if (first.kind !== "clip" || gap.kind !== "gap" || second.kind !== "clip") {
+    throw new Error("expected clip/gap/clip");
+  }
+  assert(
+    gap.sourceRange.duration.num / gap.sourceRange.duration.den === 1,
+    "gap is the removed second (1s)"
+  );
+  const startSec =
+    second.sourceRange!.startTime.num / second.sourceRange!.startTime.den;
+  assert(startSec === 2, "second clip starts at its own timecode (2s)");
+  // Same layout on the audio track.
+  assert(timeline.tracks[1].items.length === 3, "audio track has the gap too");
+  console.log("preserve timecodes model: ok");
+}
+
+{
+  // A deleted head produces a leading gap before the first clip.
+  const timeline = buildNleTimeline({
+    keepRanges: [
+      { start: 1, end: 2 },
+      { start: 3, end: 4 },
+    ],
+    duration: 5,
+    mediaFileName: "interview.mp4",
+    frameRate: "30",
+    withVideo: true,
+    withAudio: false,
+    preserveTimecodes: true,
+  });
+  const items = timeline.tracks[0].items;
+  assert(items.length === 4, "leading + middle gap");
+  const [lead, first] = items;
+  if (lead.kind !== "gap" || first.kind !== "clip") {
+    throw new Error("expected leading gap then clip");
+  }
+  const firstStartSec =
+    first.sourceRange!.startTime.num / first.sourceRange!.startTime.den;
+  assert(firstStartSec === 1, "first clip starts at its own timecode (1s)");
+  console.log("leading gap: ok");
+}
+
+{
+  // XMEML (Premiere / Resolve): clips carry their own start frames.
+  for (const format of ["premiere", "resolve"] as const) {
+    const xml = serializeTimelineXml(
+      {
+        keepRanges: keeps,
+        duration: 5,
+        mediaFileName: "interview.mp4",
+        frameRate: "30",
+        withVideo: true,
+        withAudio: true,
+        preserveTimecodes: true,
+      },
+      format
+    );
+    assert(xml.includes("<xmeml"), `${format} xmeml root`);
+    assert(xml.includes("<out>105</out>"), `${format} sequence out = 3.5s (105f)`);
+    assert(xml.includes("<start>0</start>"), `${format} first clip at 0`);
+    assert(xml.includes("<start>60</start>"), `${format} second clip at 2s (60f)`);
+    assert(xml.includes("<end>105</end>"), `${format} second clip ends at 105f`);
+    // Without the option the second clip is packed at frame 30.
+    const packed = serializeTimelineXml(
+      {
+        keepRanges: keeps,
+        duration: 5,
+        mediaFileName: "interview.mp4",
+        frameRate: "30",
+        withVideo: true,
+        withAudio: true,
+      },
+      format
+    );
+    assert(packed.includes("<start>30</start>"), `${format} packed second clip at 30f`);
+    assert(!packed.includes("<start>60</start>"), `${format} packed has no 60f clip`);
+  }
+  console.log("xmeml timecode gaps: ok");
+}
+
+{
+  // FCPXML: gaps become <gap> spine nodes; clips keep their offsets.
+  const fcpx = serializeTimelineXml(
+    {
+      keepRanges: keeps,
+      duration: 5,
+      mediaFileName: "interview.mp4",
+      frameRate: "30",
+      withVideo: true,
+      withAudio: true,
+      preserveTimecodes: true,
+    },
+    "fcpx"
+  );
+  assert(fcpx.includes("<gap"), "fcpxml gap node");
+  assert(/<gap [^>]*offset="1\/1s"/.test(fcpx), "fcpxml gap at 1s");
+  assert(/<gap [^>]*duration="1\/1s"/.test(fcpx), "fcpxml gap duration 1s");
+  assert(/<asset-clip [^>]*offset="2\/1s"/.test(fcpx), "fcpxml second clip at 2s");
+  assert(
+    fcpx.match(/<asset-clip/g)?.length === keeps.length,
+    "fcpxml still one asset-clip per keep range"
+  );
+  // Without the option there are no gaps and the second clip is packed.
+  const packed = serializeTimelineXml(
+    {
+      keepRanges: keeps,
+      duration: 5,
+      mediaFileName: "interview.mp4",
+      frameRate: "30",
+      withVideo: true,
+      withAudio: true,
+    },
+    "fcpx"
+  );
+  assert(!packed.includes("<gap"), "packed fcpxml has no gaps");
+  assert(
+    /<asset-clip [^>]*offset="1\/1s"/.test(packed),
+    "packed fcpxml second clip at 1s"
+  );
+  console.log("fcpxml timecode gaps: ok");
+}
+
+{
   const premiere = serializeTimelineXml(
     {
       keepRanges: keeps,

@@ -177,6 +177,9 @@ export const es: Record<MessageKey, string> = {
   "export.timelineTitle": "Exportar una secuencia NLE/DAW (Resolve, Premiere, Final Cut, Pro Tools, Reaper)",
   "export.nle": "Formato",
   "export.frameRate": "Velocidad de fotogramas",
+  "export.timelineGaps": "Conservar los códigos de tiempo originales",
+  "export.timelineGapsHelp":
+    "Los clips comienzan en su propio código de tiempo con huecos donde cortaste, en lugar de uno tras otro.",
   "export.timelineHelp":
     "La secuencia referencia el medio original por nombre de archivo — vuelve a vincularlo en el NLE después de importar.",
   "export.timelineHelpAaf": "AAF de Pro Tools / Logic (solo metadatos).",

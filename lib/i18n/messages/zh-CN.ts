@@ -179,6 +179,9 @@ export const zhCN: Record<MessageKey, string> = {
   "export.timelineTitle": "导出 NLE / DAW 序列（Resolve、Premiere、Final Cut、Pro Tools、Reaper）",
   "export.nle": "格式",
   "export.frameRate": "帧率",
+  "export.timelineGaps": "保留原始时间码",
+  "export.timelineGapsHelp":
+    "片段从各自的时间码开始，剪掉的部分留空，而不是紧密相连。",
   "export.timelineHelp": "序列按文件名引用原始媒体 — 导入后请在 NLE 中重新链接。",
   "export.timelineHelpAaf": "Pro Tools / Logic AAF（仅元数据）。",
   "export.timelineHelpFcpx": "Final Cut Pro FCPXML。",

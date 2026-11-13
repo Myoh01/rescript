@@ -177,6 +177,9 @@ export const ko: Record<MessageKey, string> = {
   "export.timelineTitle": "NLE / DAW 시퀀스 내보내기 (Resolve, Premiere, Final Cut, Pro Tools, Reaper)",
   "export.nle": "형식",
   "export.frameRate": "프레임 레이트",
+  "export.timelineGaps": "원본 타임코드 유지",
+  "export.timelineGapsHelp":
+    "클립이 나란히 붙는 대신 각자 자신의 타임코드로 시작하고, 자른 부분에 간격을 둡니다.",
   "export.timelineHelp":
     "시퀀스는 원본 미디어를 파일 이름으로 참조합니다 — 가져온 뒤 NLE에서 다시 연결하세요.",
   "export.timelineHelpAaf": "Pro Tools / Logic AAF (메타데이터만).",
