@@ -146,6 +146,7 @@ export default function ExportDialog() {
     useState<TimelineExportFormat>("resolve");
   const [timelineFrameRate, setTimelineFrameRate] =
     useState<TimelineFrameRate>("30");
+  const [timelineGaps, setTimelineGaps] = useState(false);
   const [timelineBusy, setTimelineBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -169,6 +170,7 @@ export default function ExportDialog() {
   const showTimelineFrameRate =
     (timelineMeta?.needsFrameRate ?? true) ||
     (timelineFormat === "blender" && !isAudioProject && !sourceFrameRate);
+  const showTimelineGaps = timelineMeta?.supportsGaps ?? false;
   const exporting = status === "exporting";
   const dialogBusy = exporting || timelineBusy || saving;
   const hasWords = words.length > 0;
@@ -416,9 +418,14 @@ export default function ExportDialog() {
         withAudio: hasAudioTrack,
         width,
         height,
+        preserveTimecodes: timelineGaps,
+      });
+      trackEvent("export_completed", {
+        kind: "timeline",
+        format: timelineFormat,
+        preserveTimecodes: timelineGaps,
         sourceFrameRate,
       });
-      trackEvent("export_completed", { kind: "timeline", format: timelineFormat });
     } catch (err) {
       setError(err instanceof Error ? err.message : en["error.timelineExport"]);
     } finally {
@@ -430,6 +437,7 @@ export default function ExportDialog() {
     duration,
     timelineFormat,
     timelineFrameRate,
+    timelineGaps,
     baseName,
     isAudioProject,
     hasAudioTrack,
@@ -695,6 +703,23 @@ export default function ExportDialog() {
                   })}
                 </div>
               </div>
+            )}
+            {showTimelineGaps && (
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-zinc-50 px-3 py-2.5 text-sm text-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200">
+                <input
+                  type="checkbox"
+                  checked={timelineGaps}
+                  disabled={timelineBusy}
+                  onChange={(e) => setTimelineGaps(e.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400 dark:border-zinc-600 dark:bg-zinc-900"
+                />
+                <span className="min-w-0">
+                  <span className="block">{t("export.timelineGaps")}</span>
+                  <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                    {t("export.timelineGapsHelp")}
+                  </span>
+                </span>
+              </label>
             )}
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               {t("export.timelineHelp")} {t(TIMELINE_HELP_KEY[timelineFormat])}

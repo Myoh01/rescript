@@ -14,7 +14,7 @@ import {
   rational,
   ZERO,
 } from "../node_modules/@chatoctopus/timeline/dist/time.js";
-import type { Timeline } from "@chatoctopus/timeline";
+import type { Rational, Timeline, TrackItem } from "@chatoctopus/timeline";
 import {
   writeAafComposition,
   type AafFrameRate,
@@ -54,17 +54,20 @@ export const TIMELINE_FORMATS: {
   ext: string;
   /** Formats that need an NLE frame-rate picker (XML / FCPXML / AAF). */
   needsFrameRate: boolean;
+  /** Formats whose tracks support blank gaps (the XML / FCPXML writers). */
+  supportsGaps: boolean;
 }[] = [
-  { value: "resolve", label: "Resolve", ext: "xml", needsFrameRate: true },
-  { value: "premiere", label: "Premiere", ext: "xml", needsFrameRate: true },
-  { value: "fcpx", label: "Final Cut", ext: "fcpxml", needsFrameRate: true },
-  { value: "aaf", label: "Pro Tools", ext: "aaf", needsFrameRate: true },
-  { value: "reaper", label: "Reaper", ext: "rpp", needsFrameRate: false },
+  { value: "resolve", label: "Resolve", ext: "xml", needsFrameRate: true, supportsGaps: true },
+  { value: "premiere", label: "Premiere", ext: "xml", needsFrameRate: true, supportsGaps: true },
+  { value: "fcpx", label: "Final Cut", ext: "fcpxml", needsFrameRate: true, supportsGaps: true },
+  { value: "aaf", label: "Pro Tools", ext: "aaf", needsFrameRate: true, supportsGaps: false },
+  { value: "reaper", label: "Reaper", ext: "rpp", needsFrameRate: false, supportsGaps: false },
   {
     value: "samplitude",
     label: "Samplitude",
     ext: "edl",
     needsFrameRate: false,
+    supportsGaps: false,
   },
   // Uses the source's own frame rate; the dialog asks only if it's unknown.
   { value: "blender", label: "Blender", ext: "blend", needsFrameRate: false },
@@ -82,6 +85,12 @@ export interface TimelineExportOptions {
   width?: number;
   height?: number;
   audioRate?: number;
+  /**
+   * XML exports (Resolve / Premiere / Final Cut) only: place each clip at its
+   * own source timecode and fill the removed regions with gaps, instead of
+   * packing the clips back-to-back.
+   */
+  preserveTimecodes?: boolean;
   /** The source video's own frame rate, when known (Blender needs the real one). */
   sourceFrameRate?: FrameRate | null;
 }
@@ -119,6 +128,7 @@ export function buildNleTimeline(options: TimelineExportOptions): Timeline {
     width = 1920,
     height = 1080,
     audioRate = 48000,
+    preserveTimecodes = false,
   } = options;
 
   if (keepRanges.length === 0) {
@@ -126,17 +136,20 @@ export function buildNleTimeline(options: TimelineExportOptions): Timeline {
   }
 
   const fr = frameRateRational(frameRate);
+  const fps = fr.num / fr.den;
+  const framesToRational = (frames: number) => rational(frames * fr.den, fr.num);
   const available = {
     startTime: ZERO,
     duration: secondsToRational(Math.max(duration, 0.001), frameRate),
   };
 
-  const makeClip = (range: TimeRange, index: number, kind: "video" | "audio") => {
-    const startTime = secondsToRational(range.start, frameRate);
-    const clipDur = secondsToRational(
-      Math.max(range.end - range.start, 1 / 120),
-      frameRate
-    );
+  const makeClip = (
+    range: TimeRange,
+    index: number,
+    kind: "video" | "audio",
+    startTime: Rational,
+    clipDur: Rational
+  ) => {
     return {
       kind: "clip" as const,
       name: `${mediaFileName} ${index + 1}`,
@@ -160,19 +173,68 @@ export function buildNleTimeline(options: TimelineExportOptions): Timeline {
     };
   };
 
+  /**
+   * With `preserveTimecodes`, each clip starts at its own source timecode and
+   * the removed regions become gaps, so the sequence keeps the original
+   * timing. Otherwise the clips are packed back-to-back — the normal edit.
+   * Positions are computed in whole frames so gap + clip durations sum
+   * exactly to the next clip's start.
+   */
+  const buildItems = (kind: "video" | "audio"): TrackItem[] => {
+    const items: TrackItem[] = [];
+    let cursorFrame = 0;
+    keepRanges.forEach((range, index) => {
+      if (preserveTimecodes) {
+        const startFrame = Math.max(0, Math.round(range.start * fps));
+        const clipFrames = Math.max(1, Math.round(range.end * fps) - startFrame);
+        const gapFrames = startFrame - cursorFrame;
+        if (gapFrames > 0) {
+          items.push({
+            kind: "gap",
+            sourceRange: {
+              startTime: ZERO,
+              duration: framesToRational(gapFrames),
+            },
+          });
+        }
+        items.push(
+          makeClip(
+            range,
+            index,
+            kind,
+            framesToRational(startFrame),
+            framesToRational(clipFrames)
+          )
+        );
+        cursorFrame = startFrame + clipFrames;
+      } else {
+        items.push(
+          makeClip(
+            range,
+            index,
+            kind,
+            secondsToRational(range.start, frameRate),
+            secondsToRational(Math.max(range.end - range.start, 1 / 120), frameRate)
+          )
+        );
+      }
+    });
+    return items;
+  };
+
   const tracks: Timeline["tracks"] = [];
   if (withVideo) {
     tracks.push({
       kind: "video",
       name: "V1",
-      items: keepRanges.map((r, i) => makeClip(r, i, "video")),
+      items: buildItems("video"),
     });
   }
   if (withAudio) {
     tracks.push({
       kind: "audio",
       name: "A1",
-      items: keepRanges.map((r, i) => makeClip(r, i, "audio")),
+      items: buildItems("audio"),
     });
   }
   if (tracks.length === 0) {

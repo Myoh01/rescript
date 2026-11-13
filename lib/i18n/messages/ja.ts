@@ -177,6 +177,9 @@ export const ja: Record<MessageKey, string> = {
   "export.timelineTitle": "NLE / DAW シーケンスを書き出す（Resolve、Premiere、Final Cut、Pro Tools、Reaper、Blender）",
   "export.nle": "形式",
   "export.frameRate": "フレームレート",
+  "export.timelineGaps": "元のタイムコードを維持",
+  "export.timelineGapsHelp":
+    "クリップを連続配置せず、カットした部分にギャップを残して、元のタイムコードから配置します。",
   "export.timelineHelp":
     "シーケンスは元のメディアをファイル名で参照します — 読み込み後に NLE で再リンクしてください。",
   "export.timelineHelpAaf": "Pro Tools / Logic 用 AAF（メタデータのみ）。",

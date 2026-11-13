@@ -179,6 +179,9 @@ export const en = {
     "Export an NLE / DAW sequence (Resolve, Premiere, Final Cut, Pro Tools, Reaper, Blender)",
   "export.nle": "Format",
   "export.frameRate": "Frame rate",
+  "export.timelineGaps": "Preserve original timecodes",
+  "export.timelineGapsHelp":
+    "Clips start at their own timecode with gaps where you cut, instead of sitting back-to-back.",
   "export.timelineHelp":
     "Sequence references your original media by filename — relink in the NLE after import.",
   "export.timelineHelpAaf": "Pro Tools / Logic AAF (metadata-only).",
